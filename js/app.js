@@ -12,6 +12,9 @@
 (function () {
   'use strict';
 
+  // The site name lives here once. Change this one line to rename the blog's headings and tab titles.
+  const SITE_NAME = 'MetaSTABLE';
+
   const app = document.getElementById('app');
   const escapeHtml = BlogMarkdown.escapeHtml;
 
@@ -78,11 +81,11 @@
   // grid. Typing in the search box only re-renders the grid, so the input
   // keeps its focus while you type.
   function renderHome() {
-    document.title = 'Engineering Notes';
+    document.title = SITE_NAME;
 
     app.innerHTML =
       '<section class="intro">' +
-        '<h1>Engineering notes</h1>' +
+        '<h1>' + escapeHtml(SITE_NAME) + '</h1>' +
         '<p>Projects, experiments, and things I am learning.</p>' +
       '</section>' +
       '<div class="toolbar">' +
@@ -188,7 +191,7 @@
     const post = BlogStorage.getPost(id);
     if (!post) return renderNotFound();
 
-    document.title = post.title + ' | Engineering Notes';
+    document.title = post.title + ' | ' + SITE_NAME;
 
     const updated = post.updatedAt !== post.createdAt && formatDate(post.updatedAt) !== formatDate(post.createdAt)
       ? '<span class="meta">Updated ' + formatDate(post.updatedAt) + '</span>' : '';
@@ -258,7 +261,7 @@
     const editing = id ? BlogStorage.getPost(id) : null;
     if (id && !editing) return renderNotFound();
 
-    document.title = (editing ? 'Edit post' : 'New post') + ' | Engineering Notes';
+    document.title = (editing ? 'Edit post' : 'New post') + ' | ' + SITE_NAME;
 
     // The form's own state. coverKey is the IndexedDB key of the cover (or null).
     let coverKey = editing ? editing.coverImage : null;
@@ -423,7 +426,7 @@
      ====================================================================== */
 
   function renderNotFound() {
-    document.title = 'Not found | Engineering Notes';
+    document.title = 'Not found | ' + SITE_NAME;
     app.innerHTML =
       '<div class="empty"><h1>Page not found</h1><p>That post or page does not exist.</p>' +
       '<a class="btn btn-primary" href="#/">Go to all posts</a></div>';
