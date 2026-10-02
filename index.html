@@ -30,9 +30,9 @@
       <a class="brand" href="#/">Engineering Notes</a>
 
       <nav class="header-actions" aria-label="Site actions">
-        <a class="btn btn-primary" href="#/new">New post</a>
-        <button class="btn" id="btn-export" type="button" title="Download all posts and images as one JSON file">Export</button>
-        <button class="btn" id="btn-import" type="button" title="Load a JSON backup file">Import</button>
+        <a class="btn btn-primary" href="#/new" data-author-only hidden>New post</a>
+        <button class="btn" id="btn-export" type="button" data-author-only hidden title="Download all posts and images as one JSON file">Export</button>
+        <button class="btn" id="btn-import" type="button" data-author-only hidden title="Load a JSON backup file">Import</button>
         <button class="btn btn-icon" id="btn-theme" type="button" aria-label="Toggle dark and light theme"></button>
         <!-- Hidden file input that the Import button clicks for us -->
         <input type="file" id="import-file" accept="application/json,.json" hidden>
@@ -47,7 +47,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <footer class="site-footer">
-    <div class="container">Built with plain HTML, CSS and JavaScript. Your posts live in this browser.</div>
+    <div class="container">Built with plain HTML, CSS and JavaScript.</div>
   </footer>
 
   <!--

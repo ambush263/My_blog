@@ -149,8 +149,9 @@
     const posts = allPosts.filter(postMatchesFilters);
 
     if (allPosts.length === 0) {
-      grid.innerHTML =
-        '<div class="empty"><p>No posts yet.</p><a class="btn btn-primary" href="#/new">Write your first post</a></div>';
+      grid.innerHTML = BlogStorage.isAuthor()
+        ? '<div class="empty"><p>No posts yet.</p><a class="btn btn-primary" href="#/new">Write your first post</a></div>'
+        : '<div class="empty"><p>No posts published yet. Check back soon.</p></div>';
       return;
     }
     if (posts.length === 0) {
@@ -206,10 +207,12 @@
         (post.coverImage ? '<img class="post-cover" data-image-key="' + escapeHtml(post.coverImage) + '" alt="">' : '') +
         // Safe: BlogMarkdown.render() sanitizes its output.
         '<div class="prose">' + BlogMarkdown.render(post.body) + '</div>' +
-        '<div class="post-actions">' +
-          '<a class="btn" href="#/edit/' + encodeURIComponent(post.id) + '">Edit</a>' +
-          '<button class="btn btn-danger" type="button" id="btn-delete">Delete</button>' +
-        '</div>' +
+        (BlogStorage.isAuthor()
+          ? '<div class="post-actions">' +
+              '<a class="btn" href="#/edit/' + encodeURIComponent(post.id) + '">Edit</a>' +
+              '<button class="btn btn-danger" type="button" id="btn-delete">Delete</button>' +
+            '</div>'
+          : '') +
       '</article>';
 
     // Tags on the post page are links that jump to the home page filtered by that tag.
@@ -223,9 +226,10 @@
       // We don't call preventDefault: the link then navigates to "#/" as usual.
     };
 
-    document.getElementById('btn-delete').addEventListener('click', function () {
-      handleDelete(post);
-    });
+    const deleteButton = document.getElementById('btn-delete');
+    if (deleteButton) {
+      deleteButton.addEventListener('click', function () { handleDelete(post); });
+    }
 
     hydrateImages(app);
   }
@@ -425,6 +429,13 @@
       '<a class="btn btn-primary" href="#/">Go to all posts</a></div>';
   }
 
+  // applyAuthorUi(): shows or hides every element marked data-author-only
+  // (New post, Export, Import) depending on author mode.
+  function applyAuthorUi() {
+    const author = BlogStorage.isAuthor();
+    document.querySelectorAll('[data-author-only]').forEach(function (el) { el.hidden = !author; });
+  }
+
   /* ======================================================================
      SECTION 6: THE ROUTER
      ====================================================================== */
@@ -438,6 +449,24 @@
     const path = location.hash.replace(/^#/, '') || '/';
     const parts = path.split('/').filter(Boolean);       // "/post/abc" -> ["post", "abc"]
     const id = parts[1] ? decodeURIComponent(parts[1]) : null;
+
+    // Switches: #/author turns author mode on, #/visitor turns it off.
+    if (parts[0] === 'author' || parts[0] === 'visitor') {
+      const on = parts[0] === 'author';
+      BlogStorage.setAuthor(on);
+      if (on) BlogStorage.seedIfFirstRun();
+      applyAuthorUi();
+      showToast(on ? 'Author mode on.' : 'Author mode off. You are now seeing the public site.');
+      if (!on) BlogStorage.loadPublished().then(function () { location.hash = '#/'; route(); });
+      else location.hash = '#/';
+      return;
+    }
+
+    // Visitors cannot open the editor, even by typing the URL.
+    if ((parts[0] === 'new' || parts[0] === 'edit') && !BlogStorage.isAuthor()) {
+      location.hash = '#/';
+      return;
+    }
 
     try {
       if (parts.length === 0)               renderHome();
@@ -488,13 +517,13 @@
       // The standard trick: a temporary <a download> that we click with code.
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'blog-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+      link.download = 'blog-data.json'; // the name the live site looks for
       document.body.appendChild(link);
       link.click();
       link.remove();
       setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
 
-      showToast('Backup downloaded (' + data.posts.length + ' posts, ' + data.images.length + ' images).');
+      showToast('Downloaded blog-data.json (' + data.posts.length + ' posts, ' + data.images.length + ' images). To publish, commit it to the repo as data/blog-data.json.', 'info');
     } catch (err) {
       showToast('Export failed: ' + err.message, 'error');
     }
@@ -512,7 +541,7 @@
       return;
     }
 
-    if (!window.confirm('Import this backup? Posts with the same ID will be overwritten; your other posts stay.')) return;
+    if (!window.confirm('Import this file? Posts with the same ID will be overwritten; your other posts stay.')) return;
 
     try {
       const result = await BlogStorage.importAll(data);
@@ -527,8 +556,13 @@
      SECTION 9: START UP
      ====================================================================== */
 
-  function init() {
-    BlogStorage.seedIfFirstRun();   // sample posts on the very first visit
+  async function init() {
+    if (BlogStorage.isAuthor()) {
+      BlogStorage.seedIfFirstRun();       // sample posts on the author's first visit
+    } else {
+      await BlogStorage.loadPublished();  // visitors: download the published posts first
+    }
+    applyAuthorUi();
     initTheme();
 
     document.getElementById('btn-export').addEventListener('click', handleExport);
@@ -543,8 +577,10 @@
     window.addEventListener('hashchange', route); // re-render when the URL hash changes
     route();                                      // render the page for the current URL
 
-    // Housekeeping in the background: remove images no post uses.
-    BlogStorage.pruneUnusedImages().catch(function (err) { console.warn(err); });
+    // Housekeeping (author only): remove images no post uses.
+    if (BlogStorage.isAuthor()) {
+      BlogStorage.pruneUnusedImages().catch(function (err) { console.warn(err); });
+    }
   }
 
   init();

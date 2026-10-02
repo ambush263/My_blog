@@ -97,7 +97,8 @@ const BlogMarkdown = (function () {
       .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')    // images
       .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')  // links: keep the link text
       .replace(/<[^>]+>/g, ' ')                 // raw HTML tags
-      .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+\.)\s+/gm, '') // heading/quote/list markers
+      .replace(/^\s{0,3}#{1,6}\s+(.+)$/gm, '$1.')            // headings become short sentences
+      .replace(/^\s{0,3}(>|[-*+]|\d+\.)\s+/gm, '')          // quote/list markers
       .replace(/[*_~]/g, '')                    // bold / italic / strike marks
       .replace(/\s+/g, ' ')                     // collapse whitespace
       .trim();

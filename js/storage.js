@@ -26,6 +26,68 @@ const BlogStorage = (function () {
   const JPEG_QUALITY    = 0.8;
 
   /* ======================================================================
+     SECTION 0: author mode and published data
+
+     Two kinds of people open this site:
+
+     - VISITORS read the posts that are committed to the repository in
+       data/blog-data.json. They cannot change anything.
+     - YOU (the author) write posts in your own browser. Those are saved in
+       localStorage/IndexedDB. When you are happy, you press Export and commit
+       the downloaded file as data/blog-data.json. That is "publishing".
+
+     Author mode is just a flag in your browser (visit #/author to turn it on).
+     It is NOT security: it only hides buttons that would not work for a
+     visitor anyway. Nobody can change your repo through the website.
+     ====================================================================== */
+
+  const AUTHOR_KEY    = 'blog.author';
+  const PUBLISHED_URL = 'data/blog-data.json';  // relative to index.html
+
+  // Posts and images loaded from the repo file, kept in memory for visitors.
+  let published = { posts: [], images: {} };
+
+  function isAuthor() {
+    try { return localStorage.getItem(AUTHOR_KEY) === 'yes'; } catch (e) { return false; }
+  }
+
+  function setAuthor(on) {
+    try {
+      if (on) localStorage.setItem(AUTHOR_KEY, 'yes'); else localStorage.removeItem(AUTHOR_KEY);
+    } catch (e) { /* storage blocked: nothing to do */ }
+  }
+
+  // loadPublished(): downloads data/blog-data.json with fetch().
+  // Returns true on success, false if the file is missing or broken
+  // (for example when index.html is opened from file://, where fetch is blocked).
+  async function loadPublished() {
+    try {
+      const response = await fetch(PUBLISHED_URL, { cache: 'no-cache' });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const data = await response.json();
+
+      const posts = (Array.isArray(data.posts) ? data.posts : []).map(cleanImportedPost).filter(Boolean);
+      const images = {};
+      (Array.isArray(data.images) ? data.images : []).forEach(function (img) {
+        if (img && typeof img.key === 'string' && /^data:image\//.test(img.dataUrl || '')) {
+          images[img.key] = img.dataUrl;
+        }
+      });
+      published = { posts: posts, images: images };
+      return true;
+    } catch (err) {
+      console.warn('Could not load ' + PUBLISHED_URL + ':', err);
+      return false;
+    }
+  }
+
+  // allPosts(): the list the reading pages use.
+  // Author -> own browser data. Visitor -> published file.
+  function allPosts() {
+    return isAuthor() ? readPosts() : published.posts.slice();
+  }
+
+  /* ======================================================================
      SECTION 1: small helpers
      ====================================================================== */
 
@@ -94,14 +156,14 @@ const BlogStorage = (function () {
 
   // getPosts(): all posts, newest first.
   function getPosts() {
-    return readPosts().sort(function (a, b) {
+    return allPosts().sort(function (a, b) {
       return new Date(b.createdAt) - new Date(a.createdAt);
     });
   }
 
   // getPost(id): one post, or undefined if the id doesn't exist.
   function getPost(id) {
-    return readPosts().find(function (post) { return post.id === id; });
+    return allPosts().find(function (post) { return post.id === id; });
   }
 
   // savePost(data): creates a post (no data.id) or updates one (with data.id).
@@ -200,6 +262,8 @@ const BlogStorage = (function () {
 
   // getImage(key): returns the data URL string, or null if it's missing.
   async function getImage(key) {
+    // Visitors read images from the published file, not from IndexedDB.
+    if (!isAuthor()) return published.images[key] || null;
     if (imageCache[key]) return imageCache[key];
     const db = await openDb();
     return new Promise(function (resolve, reject) {
@@ -369,6 +433,7 @@ const BlogStorage = (function () {
   // seedIfFirstRun(): adds two example posts once. We store a "seeded" flag,
   // so if you later delete every post, the samples don't come back.
   function seedIfFirstRun() {
+    if (!isAuthor()) return; // visitors only ever see published posts
     let alreadySeeded = false;
     try { alreadySeeded = localStorage.getItem(SEEDED_KEY) === 'yes'; } catch (e) { return; }
     if (alreadySeeded || readPosts().length > 0) return;
@@ -441,6 +506,9 @@ const BlogStorage = (function () {
 
   // Public API
   return {
+    isAuthor: isAuthor,
+    setAuthor: setAuthor,
+    loadPublished: loadPublished,
     parseTags: parseTags,
     getPosts: getPosts,
     getPost: getPost,
