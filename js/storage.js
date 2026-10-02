@@ -355,11 +355,58 @@ const BlogStorage = (function () {
     readPosts().forEach(function (post) {
       extractImageKeys(post).forEach(function (key) { used[key] = true; });
     });
+    draftImageKeys().forEach(function (key) { used[key] = true; });
 
     const stored = await getAllImages();
     for (const record of stored) {
       if (!used[record.key]) await deleteImage(record.key);
     }
+  }
+
+  /* ======================================================================
+     SECTION 3b: editor drafts (autosave)
+     One draft per editor: "new" for a new post, or the post id when editing.
+     ====================================================================== */
+
+  const DRAFT_PREFIX = 'blog.draft.';
+
+  function saveDraft(id, draft) {
+    try { localStorage.setItem(DRAFT_PREFIX + id, JSON.stringify(draft)); } catch (e) { /* full: skip */ }
+  }
+
+  // loadDraft(id): the saved draft object, or null. Only returns it if it has content.
+  function loadDraft(id) {
+    try {
+      const raw = localStorage.getItem(DRAFT_PREFIX + id);
+      const draft = raw ? JSON.parse(raw) : null;
+      if (!draft || (!draft.title && !draft.body && !draft.coverImage)) return null;
+      return {
+        title: String(draft.title || ''),
+        tags: String(draft.tags || ''),
+        body: String(draft.body || ''),
+        coverImage: typeof draft.coverImage === 'string' ? draft.coverImage : null
+      };
+    } catch (e) { return null; }
+  }
+
+  function clearDraft(id) {
+    try { localStorage.removeItem(DRAFT_PREFIX + id); } catch (e) { /* ignore */ }
+  }
+
+  // Image keys used by unsaved drafts. pruneUnusedImages must not delete these,
+  // or a restored draft would come back with missing pictures.
+  function draftImageKeys() {
+    const keys = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const name = localStorage.key(i);
+        if (name && name.indexOf(DRAFT_PREFIX) === 0) {
+          const draft = JSON.parse(localStorage.getItem(name));
+          extractImageKeys({ coverImage: draft.coverImage, body: draft.body }).forEach(function (k) { keys.push(k); });
+        }
+      }
+    } catch (e) { /* ignore */ }
+    return keys;
   }
 
   /* ======================================================================
@@ -506,6 +553,9 @@ const BlogStorage = (function () {
 
   // Public API
   return {
+    saveDraft: saveDraft,
+    loadDraft: loadDraft,
+    clearDraft: clearDraft,
     isAuthor: isAuthor,
     setAuthor: setAuthor,
     loadPublished: loadPublished,

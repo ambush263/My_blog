@@ -85,7 +85,7 @@
 
     app.innerHTML =
       '<section class="intro">' +
-        '<h1>' + escapeHtml(SITE_NAME) + '</h1>' +
+        '<h1>Engineering notes</h1>' +
         '<p>Projects, experiments, and things I am learning.</p>' +
       '</section>' +
       '<div class="toolbar">' +
